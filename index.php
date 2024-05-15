@@ -13,20 +13,22 @@ $arRuMonth = array (
     'ноя' => '11',
     'дек' => '12',
 );
+
 $page = file_get_contents('https://pfc-cska.com/matches/spisok-matchej/');
-preg_match('#<div class="list-matches__item(.*?)<\/a>#s', $page, $nextMatch); // *Находим блок с показом следующего матча
+
+// *Находим блок с показом следующего матча
+preg_match('#<div class="list-matches__item(.*?)<\/a>#s', $page, $nextMatch);
 $nextMatch = $nextMatch[0];
 
 // * Создаём объект с датой матча
-preg_match('#list-matches__date.*>.*(\d\d).(.{6}).*(\d\d).(\d\d).*,#s', $nextMatch, $date);
+preg_match('#list-matches__date.*?>?(\d\d).(.{6}).*?(\d\d).*?(\d\d)#s', $nextMatch, $date);
 $matchDate = new DateTime();
 $matchDate->setDate(date('Y'), $arRuMonth[$date[2]], $date[1]);
 $matchDate->setTime($date[3], $date[4]);
 
-// * Находим название матча с помощью известной нам даты
+// * Находим название матча
 preg_match('#matches__name">(.*?),(.*?)<\/#s', $nextMatch, $name);
 $matchName = trim(str_replace('  ', ' ', $name[1])) . ', ' . trim(str_replace('  ', ' ', $name[2]));
-
 
 // * Определяем дома или на выезде
 preg_match('#list-matches__item--(.*?)"#s', $nextMatch, $place);
@@ -48,14 +50,15 @@ if($matchPlace == 'home') {
     $arTeams = [$matchTeam, 'ПФК ЦСКА'];
     $arLogo = [$logo, $ourLogo];
 }
-
+$url = ($_SERVER['HTTPS'] ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
 // * Путь до картинки на сайте
-$imageURL = 'https://cska.mongiboy.ru/img/' . strtolower(translit($arTeams[0]) . '-' . translit($arTeams[1]) . '.jpg');
+$imageURL = $url . '/img/' . strtolower(translit($arTeams[0]) . '-' . translit($arTeams[1]) . '.jpg');
 
 // * Формируем сообщение для телеги
 $text =  $date[3] . ':' . $date[4] . PHP_EOL . $arTeams[0] . ' - ' . $arTeams[1] . '.' . PHP_EOL . $matchName;
 
 $trigger = whenGame($matchDate);
+
 switch($trigger){
     case 'timeToImage';
         addImage($arLogo, $arTeams);
@@ -86,7 +89,7 @@ function addImage($arLogo, $arTeams){
     $arPath = [] ;
     foreach($arLogo as $logo){
         if($logo != 'img/pfk_cska.png'){
-            $pathToLogo = 'https://pfc-cska.com/' . $logo;
+            $pathToLogo = $logo;
             $path_parts = pathinfo($pathToLogo);
             $pathToImage = 'img/' . $path_parts['basename'];
             copy($pathToLogo, $pathToImage);
@@ -127,16 +130,16 @@ function sendMessage($when, $text, $photo){
     $chatId = $telegram['chatId'];
     $myChatId = $telegram['myChatId'];
 
+    $message = '';
+
     if($when == 'tomorrowGame'){
         $message = 'Завтра в ' . $text;
     } elseif($when == 'soonGame'){
         $message = 'Скоро игра: ' . $text;
-    } else{
-        return false;
     }
 
     $response = array(
-        'chat_id' => $chatId,
+        'chat_id' => $myChatId,
         'photo' => $photo,
         'caption' => $message,
     );
@@ -146,7 +149,7 @@ function sendMessage($when, $text, $photo){
     curl_setopt($ch, CURLOPT_POSTFIELDS, $response);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, false);
-    curl_exec($ch);
+    $test = curl_exec($ch);
     curl_close($ch);
     return true;
 }
